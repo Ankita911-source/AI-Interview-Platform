@@ -1,8 +1,9 @@
-from enum import Enum
+# from enum import Enum
+from enum import StrEnum
 from typing import Optional
 from pydantic import BaseModel
 
-class InterviewStatusEnum(str, Enum) :
+class InterviewStatusEnum(StrEnum):  #(strEnum) = (str, Enum)
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
 
@@ -17,3 +18,4 @@ class InterviewSession(BaseModel):
     status: InterviewStatusEnum = InterviewStatusEnum.IN_PROGRESS
     answers: list[Answer] = []
     current_index: int = 0
+    introText: str = ""
