@@ -5,6 +5,15 @@ import json
 load_dotenv()
 client = OpenAI()
 
+
+def _parse_json(content: str):
+    # the model sometimes wraps its JSON in ```json fences, strip them before parsing
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else ""
+        text = text.rsplit("```", 1)[0]
+    return json.loads(text.strip())
+
 async def generate_questions_intro(job_title, job_description, resume_text):
     SYSTEM_PROMPT = f"""
         You are an AI interview export, who generates questions based on candidate's job_title, job_description, resume_text.
@@ -57,7 +66,7 @@ async def generate_questions_intro(job_title, job_description, resume_text):
         ]
     )
 
-    return json.loads(response.choices[0].message.content)
+    return _parse_json(response.choices[0].message.content)
 
 
 async def generate_report(answers = []):
@@ -95,4 +104,4 @@ async def generate_report(answers = []):
         ]
     )
 
-    return json.loads(response.choices[0].message.content)
+    return _parse_json(response.choices[0].message.content)

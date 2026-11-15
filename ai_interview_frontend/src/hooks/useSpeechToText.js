@@ -1,117 +1,54 @@
-//Start Microphone
-//Convert Speech to Text
-//Detect 3s pause/ silence
-//automatically call a callback function
-//Speech recognition
-
-// import {useState, useRef, useEffect} from "react";
-
-
-
-// export const useSpeechToText = (onSilence) => { 
-//     const recognitionRef = useRef(""); //SpeechRecognition 
-//     const silenceTimeoutRef = useRef(""); 
-//     const onSilenceRef = useRef(onSilence); 
-//     const transcriptRef = useRef(""); 
-//     const [transcript, setTranscript] = useState("");
-    
-//     useEffect(() => {
-//     onSilenceRef.current = onSilence;
-//   }, [onSilence]);
-
-//     useEffect(() => {
-//     transcriptRef.current = transcript;
-//   }, [transcript]);
-
-//     const startListening = () => {
-//         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-//         if (!SpeechRecognition) {
-//             console.error("Speech Recognition is not supported in this browser");
-//             return;
-//         }
-
-//         const recognition = new SpeechRecognition();
-//         recognition.continuous = true;
-//         recognition.interimResults = true;
-//         recognition.lang = "en-US";
-
-//         recognition.onresult = (event) => {
-//            let finalText = "";
-//            let interimText = "";
-
-//             for (let i = event.resultIndex; i < event.results.length; i++) {
-//                 const result  = event.results[i]; 
-//                 const transcript = result[0].transcript;
-                
-//                 if(result.isFinal) {
-//                     finalText += transcript ;
-//                 } else {
-//                     interimText += transcript;
-//                 }
-//             }
-          
-//             if(finalText) {
-//                setTranscript(prev => (prev + " " + finalText).trim());
-
-//             }
-//             if(finalText || interimText) {
-//             resetSilenceTimer();
-//             }
-//         };
-
-//         recognition.onerror = (error) => {
-//             console.error("Speech Recognition Error: ", error);
-//         };
-//         recognition.start() ;
-//         recognitionRef.current = recognition;
-       
-//     };
-
-//     const resetSilenceTimer = () => {
-//     clearTimeout(silenceTimeRef.current);
-
-//     silenceTimeRef.current = setTimeout(() => {
-//       onSilenceRef.current(transcriptRef.current);
-//     }, 3000);
-//   };
-
-//     const stopListening = () => {
-//     recognitionRef.current?.stop();
-//     clearTimeout(silenceTimeRef.current);
-//   };
-
-//   return {
-//     stopListening,
-//     resetSilenceTimer,
-//     startListening,
-//   };
-// };
-    
-
-
-
-// Start Micropone
-// Convert speech to text
-// detct 3sec pause/ slience
-// auomitically call a callback function execute
-// SpeechRecognition
-
 import { useEffect, useRef, useState } from "react";
 
+const SILENCE_MS = 3000;
+
 export const useSpeechToText = (onSilence) => {
-  const recognitionRef = useRef(""); // SpeechRecognition
-  const silenceTimeRef = useRef("");
+  const recognitionRef = useRef(null);
+  const silenceTimerRef = useRef(null);
   const onSilenceRef = useRef(onSilence);
-  const transcriptRef = useRef("");
+  const finalTextRef = useRef(""); 
+  const fullTextRef = useRef(""); 
+  const activeRef = useRef(false); 
   const [transcript, setTranscript] = useState("");
+
 
   useEffect(() => {
     onSilenceRef.current = onSilence;
   }, [onSilence]);
 
-  useEffect(() => {
-    transcriptRef.current = transcript;
-  }, [transcript]);
+  const clearTimer = () => {
+    clearTimeout(silenceTimerRef.current);
+    silenceTimerRef.current = null;
+  };
+
+
+  const teardown = () => {
+    activeRef.current = false;
+    clearTimer();
+    const rec = recognitionRef.current;
+    if (rec) {
+      rec.onresult = null;
+      rec.onend = null;
+      rec.onerror = null;
+      try {
+        rec.abort();
+      } catch (e) {
+        /* already stopped */
+      }
+      recognitionRef.current = null;
+    }
+  };
+
+  const armSilenceTimer = () => {
+    clearTimer();
+    silenceTimerRef.current = setTimeout(() => {
+      const text = fullTextRef.current.trim();
+      if (!activeRef.current || !text) return; 
+      teardown(); 
+      console.log("Silence detected — submitting:", text);
+      onSilenceRef.current(text);
+    }, SILENCE_MS);
+  };
 
   const startListening = () => {
     const SpeechRecognition =
@@ -122,62 +59,78 @@ export const useSpeechToText = (onSilence) => {
       return;
     }
 
+    teardown(); 
+
+    
+    finalTextRef.current = "";
+    fullTextRef.current = "";
+    setTranscript("");
+    activeRef.current = true;
+
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.lang = "en-US";
     recognition.interimResults = true;
+    recognition.lang = "en-US";
 
     recognition.onresult = (event) => {
-      let finalText = "";
-      let interimText = "";
+      if (!activeRef.current) return;
 
+      let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
-        const transcript = result[0].transcript;
-
         if (result.isFinal) {
-          finalText += transcript;
+          finalTextRef.current = (
+            finalTextRef.current +
+            " " +
+            result[0].transcript
+          ).trim();
         } else {
-          interimText += transcript;
+          interim += result[0].transcript;
         }
       }
 
-      if (finalText) {
-        setTranscript((prev) => (prev + " " + finalText).trim());
-      }
+      const full = (finalTextRef.current + " " + interim).trim();
+      fullTextRef.current = full; 
+      setTranscript(full); 
 
-      if (finalText || interimText) {
-        resetSilenceTimer();
-      }
+      if (full) armSilenceTimer(); 
     };
 
-    recognition.onerror = (error) => {
-      console.error("SpeechRecognition error", error);
+    recognition.onerror = (event) => {
+      console.error("SpeechRecognition error:", event.error);
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        teardown(); // mic permission denied, don't loop
+      }
+      
     };
 
-    recognition.start();
+    
+    recognition.onend = () => {
+      if (!activeRef.current || recognitionRef.current !== recognition) return;
+      setTimeout(() => {
+        if (!activeRef.current || recognitionRef.current !== recognition) return;
+        try {
+          recognition.start();
+        } catch (e) {
+          console.warn("Could not restart recognition:", e);
+        }
+      }, 250);
+    };
+
     recognitionRef.current = recognition;
-  };
-
-  const resetSilenceTimer = () => {
-    clearTimeout(silenceTimeRef.current);
-    console.log("Timer reset — 3s countdown started");
-
-    silenceTimeRef.current = setTimeout(() => {
-      onSilenceRef.current(transcriptRef.current);
-      console.log("Silence detected — calling onSilence with:", transcriptRef.current);
-    }, 3000);
+    recognition.start();
   };
 
   const stopListening = () => {
-    recognitionRef.current?.stop();
-    clearTimeout(silenceTimeRef.current);
+    teardown();
   };
+
+  
+  useEffect(() => teardown, []);
 
   return {
-    stopListening,
-    resetSilenceTimer,
+    transcript,
     startListening,
+    stopListening,
   };
 };
-

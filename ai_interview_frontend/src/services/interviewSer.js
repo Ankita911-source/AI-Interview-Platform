@@ -1,10 +1,10 @@
-import axios from "axios";
+import api, { getErrorMessage } from "./api";
 
-const BASE_URL = "http://localhost:8000/interview";
+const BASE_URL = "/interview";
 
 export const startInterviewAPI = async (sessionId) => {
   try {
-    const response = await axios.get(`${BASE_URL}/start/${sessionId}`);
+    const response = await api.get(`${BASE_URL}/start/${sessionId}`);
     return response.data;
   } catch (error) {
     console.error("Error: ", error);
@@ -15,7 +15,7 @@ export const startInterviewAPI = async (sessionId) => {
 
 export const submitAPI = async (payload) => {
   try {
-    const response = await axios.post(`${BASE_URL}/submit`, payload);
+    const response = await api.post(`${BASE_URL}/submit`, payload);
     return response.data;
   } catch (error) {
     console.error("Error: ", error);
@@ -26,7 +26,7 @@ export const submitAPI = async (payload) => {
 
 export const reportAPI = async (sessionId) => {
   try {
-    const response = await axios.get(`${BASE_URL}/report/${sessionId}`);
+    const response = await api.get(`${BASE_URL}/report/${sessionId}`);
     return response.data;
   } catch (error) {
     console.error("Error: ", error);
@@ -37,7 +37,18 @@ export const reportAPI = async (sessionId) => {
 
 export const endInterviewAPI = async (sessionId) => {
   try {
-    const response = await axios.put(`${BASE_URL}/end/${sessionId}`);
+    const response = await api.put(`${BASE_URL}/end/${sessionId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error: ", error);
+  }
+
+  return null;
+};
+
+export const historyAPI = async () => {
+  try {
+    const response = await api.get(`${BASE_URL}/history`);
     return response.data;
   } catch (error) {
     console.error("Error: ", error);
@@ -48,7 +59,7 @@ export const endInterviewAPI = async (sessionId) => {
 
 export const generateQuestionsAPI = async (formData) => {
   try {
-    const response = await axios.post(
+    const response = await api.post(
       `${BASE_URL}/generate-question`,
       formData,
       {
@@ -60,7 +71,6 @@ export const generateQuestionsAPI = async (formData) => {
     return response.data;
   } catch (error) {
     console.error("Error: ", error);
+    throw new Error(getErrorMessage(error));
   }
-
-  return null;
 };
